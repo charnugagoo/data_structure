@@ -2,8 +2,6 @@
 ;Then in order to be called red-black, we must color the nodes
 ;under some rules.
 
-
-
 ;---------------------------------------------------------------------
 ;first let us write the node data structure
 ;its state property :
@@ -60,11 +58,26 @@
             (else (error "Unknown request -- NODE" message))))
     dispatch))
 
-(define (get-key node) (node 'get-key))
-(define (get-parent node) (node 'get-parent))
-(define (get-right node) (node 'get-right))
-(define (get-left node) (node 'get-left))
-(define (get-color node) (node 'get-color))
+(define (get-key node)
+  (if (null? node)
+      '()
+      (node 'get-key)))
+(define (get-parent node)
+  (if (null? node)
+      '()
+      (node 'get-parent)))
+(define (get-right node)
+  (if (null? node)
+      '()
+      (node 'get-right)))
+(define (get-left node)
+  (if (null? node)
+      '()
+      (node 'get-left)))
+(define (get-color node)
+  (if (null? node)
+      BLACK
+      (node 'get-color)))
 (define (get-satellite node) (node 'get-satellite))
 
 (define (set-key! node k) ((node 'set-key) k))
@@ -73,4 +86,137 @@
 (define (set-left! node l) ((node 'set-left) l))
 (define (set-color! node c) ((node 'set-color) c))
 (define (set-satellite! node s) ((node 'set-satellite) s))
+; we never do operation "get or set" for a NIL!!!!!!!!!!!!
+(define (connect-nodes-lc l p)
+  (begin (set-left! p l)
+         (if (not (null? l))
+             (set-parent! l p))))
 
+(define (connect-nodes-rc r p)
+  (begin (set-right! p r)
+         (if (not (null? r))
+             (set-parent! r p))))
+
+(define (cmp-node f n1 n2) (f (get-key n1) (get-key n2)))
+
+;---------------------------------------------------------------------
+;let us write the red black tree
+;its state property :
+;     1. root
+;its interface proc :
+;     1. insert
+;     2. in-order-walk
+(define (make-rbt f)
+  (let ((root '())
+        (cmp (lambda (n1 n2) (f (get-key n1) (get-key n2)))))
+    (define (in-order-walk r)
+      (if (null? r)
+          '()
+          (append (in-order-walk (get-left r))
+                    (list (get-key r) (get-color r))
+                    (in-order-walk (get-right r)))))
+    (define (search r k)
+      (cond ((or (null? r)
+                 (eq? k (get-key r))) r)
+            ((f k (get-key r)) (search (get-left r) k))
+            (else (search (get-right r) k))))
+    (define (minimum r)
+      (cond ((null? r) (error "Empty Tree!"))
+            (else
+             (let ((l (get-left r)))
+               (if (null? l)
+                   r
+                   (minimum l))))))
+
+    (define (maximum r)
+      (cond ((null? r) (error "Empty Tree!"))
+            (else
+             (let ((ri (get-right r)))
+               (if (null? ri)
+                   r
+                   (maximum ri))))))
+    (define (successor-iter-help x y)
+      (cond ((or (null? y) (not (eq? x (get-right y)))) y)
+            (else (successor-iter-help y (get-parent y)))))
+    (define (successor x)
+      (cond ((null? x) (error "Empty Tree!"))
+            (else
+             (let ((r (get-right x)))
+               (if (null? r)
+                   (successor-iter-help x (get-parent x))
+                   (minimum r))))))
+    (define (predecessor-iter-help x y)
+      (cond ((or (null? y) (not (eq? x (get-left y)))) y)
+            (else (predecessor-iter-help y (get-parent y)))))
+    (define (predecessor x)
+      (cond ((null? x) (error "Empty Tree!"))
+            (else
+             (let ((l (get-left x)))
+               (if (null? l)
+                   (predecessor-iter-help x (get-parent x))
+                   (maximum l))))))
+
+;   |       Left-Rotate(x)            |
+;   x      ---------------->          y
+;  / \                               / \
+; a   y    <----------------        x   c
+;    / \    Right-Rotate(y)        / \
+;   b   c                         a   b
+    (define (left-rotate x)
+      (let ((y (get-right x)))
+        (if (null? y)
+            (error "Right Child is NIL!!!" x)
+            (begin (connect-rc (get-left y) x)
+                   (if (null? (get-parent x))
+                       (begin (set-parent! y '())
+                              (set! root y))
+                       (if (eq? x (get-left (get-parent x)))
+                           (connect-nodes-lc y (get-parent x))
+                           (connect-nodes-rc y (get-parent x))))
+                   (connect-nodes-lc x y)))))
+    (define (right-rotate y)
+      (let ((x (get-left y)))
+        (if (null? x)
+            (error "Left Child is NIL!!!" y)
+            (begin (connect-lc (get-right x) y)
+                   (if (null? (get-parent y))
+                       (begin (set-parent! x '())
+                              (set! root x))
+                       (if (eq? y (get-right (get-parent y)))
+                           (connect-nodes-rc x (get-parent y))
+                           (connect-nodes-lc x (get-parent y))))
+                   (connect-nodes-rc y x)))))
+    ;rember the loop invariant:
+    ;1. Node z is red ;
+    ;2. if (get-parent z) is root, the (get-parent z) is black
+    ;3. if there is a violation of the rbt, there's at most one!
+    ;   either Property 2 : z is root, and z is red
+    ;       or Property 4 : both z and (get-parent z) are red.
+    ;----------------------------case  1----------------------------
+    ;                |                                      |
+    ;            (BLACK:C)                                (RED:C)
+    ;             /       \                              /       \
+    ;         (RED:A)     (RED:D) --------->       (BLACK:A)     (BLACK:D)
+    ;         /   \           / \                  /    \           / \
+    ;        a    (RED:z)    d   e                a    (RED:z)     d   e
+    ;              /  \                                 /  \
+    ;             b    c                               b    c
+    ;-------------------------another case 1-------------------------
+    ;                |                                      |
+    ;            (BLACK:C)                                (RED:C)
+    ;             /       \                              /       \
+    ;         (RED:A)     (RED:D) --------->       (BLACK:A)     (BLACK:D)
+    ;         /   \           / \                  /    \           / \
+    ;     (RED:z)  c         d   e             (RED:z)   c         d   e
+    ;      /  \                                 /  \
+    ;     a    b                               a    b
+    ;-------------case 2------------case 3-------------------------------
+    ;              |                    |                   |
+    ;          (BLACK:C) ------>    (BLACK:C)  ------>   (BLACK:z)
+    ;           /   \                /    \               /    \
+    ;       (RED:A)  d          (RED:z)    d         (RED:A)    (RED:C)
+    ;       /  \                  /    \              /  \        /  \
+    ;      a   (RED:z)         (RED:A)  c            a    b      c    d
+    ;           /  \            /  \
+    ;          b    c          a    b
+    (define (insert-fixup z)
