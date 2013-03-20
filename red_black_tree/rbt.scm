@@ -103,9 +103,6 @@
 ;let us write the red black tree
 ;its state property :
 ;     1. root
-;its interface proc :
-;     1. insert
-;     2. in-order-walk
 (define (make-rbt f)
   (let ((root '())
         (cmp (lambda (n1 n2) (f (get-key n1) (get-key n2)))))
@@ -115,6 +112,21 @@
           (append (in-order-walk (get-left r))
                     (list (cons (get-key r) (get-color r)))
                     (in-order-walk (get-right r)))))
+
+    (define (level-walk queue)
+      (if (or (null? queue))
+          '()
+          (let ((to-visit (car queue)))
+            (begin (set! queue (cdr queue))
+                   (if (not (null? (get-left to-visit)))
+                       (set! queue (append queue (list (get-left to-visit)))))
+                   (if (not (null? (get-right to-visit)))
+                       (set! queue (append queue (list (get-right to-visit)))))
+                   (append (list (cons (get-key to-visit)
+                                       (get-color to-visit)))
+                           (level-walk queue))))))
+
+
     (define (search r k)
       (cond ((or (null? r)
                  (eq? k (get-key r))) r)
@@ -272,6 +284,7 @@
     (define (dispatch message)
       (cond ((eq? message 'insert) insert)
             ((eq? message 'in-order-walk) (in-order-walk root))
+            ((eq? message 'level-walk) (level-walk (list root)))
             ((eq? message 'search) (lambda (k) (search root k)))
             ((eq? message 'minimum) minimum)
             ((eq? message 'maximum) maximum)
@@ -285,4 +298,5 @@
 
 (define (insert rbt n) ((rbt 'insert) n))
 (define (in-order-walk rbt) (rbt 'in-order-walk))
+(define (level-walk rbt) (rbt 'level-walk))
 (define (search rbt k) ((rbt 'search k)))
