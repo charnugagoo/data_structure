@@ -101,6 +101,17 @@
 
 ;---------------------------------------------------------------------
 ;let us write the red black tree
+;---------------------------------------------------------------------
+;first, recall what we mean by "Red Black Tree"
+;A Binary Tree can be called a Red Black Tree if and if only it holds
+;the following 5 prooperties  :
+;1. Each node is either red or black
+;2. The root is black
+;3. Each leaf(NIL) is black
+;4. if a node is red , then both its children are black.
+;5. For each node, all paths from the node to descendant leaves contain
+;   the same number of black nodes.
+;----------------------------------------------------------------------
 ;its state property :
 ;     1. root
 (define (make-rbt f)
@@ -239,10 +250,19 @@
       (if right-uncle?
           (eq? z (get-right p))
           (eq? z (get-left p))))
-    (define (get-rotate-proc message right-uncle?)
-      (if (eq? message 'first)
-          (if right-uncle? left-rotate right-rotate)
-          (if right-uncle? right-rotate left-rotate)))
+    (define (select-rotate flag)
+      (if flag
+          left-rotate
+          right-rotate))
+    (define (get-rotate-proc message flag)
+      ;(if (eq? message 'first)
+          ;(if right-uncle? left-rotate right-rotate)
+          ;(if right-uncle? right-rotate left-rotate))
+      (cond ((eq? message 'first) (select-rotate flag))
+            ((eq? message 'second) (select-rotate (not flag)))
+            ((eq? message 'third) (select-rotate (not flag)))
+            ((eq? message 'fourth) (select-rotate flag))
+            (else (error "Unknown message" messaga))))
     (define (insert-fixup z)
       (let ((p (get-parent z)))
         (if (eq? (get-color p) RED)
@@ -281,6 +301,68 @@
             (else
              (insert-iter-help root '() z))))
 
+    (define (choose-y z)
+      (if (or (null? (get-left z))
+              (null? (get-right z)))
+          z
+          (successor z)))
+    (define (choose-x y)
+      (if (null? (get-left y))
+          (get-right y)
+          (get-left y)))
+    (define (get-child message x flag)
+      ;(cond ((or (eq? message 'start) (eq? message 'first) (eq? message 'second) (eq? message 'fourth))
+      (cond ((eq? message 'ok)
+             (if flag (get-right x) (get-left x)))
+            ((eq? message 'third)
+             (if flag
+                 (lambda (before?) (if before? (get-left x) (get-right x)))
+                 (lambda (before?) (if before? (get-right x) (get-left x)))))))
+    (define (delete-fixup x)
+      (if (or (eq? x root) (eq? (get-color x) RED))
+          (set-color! x BLACK)
+          (let ((p (get-parent x)))
+            (let ((right-brother? (eq? x (get-left p))))
+              (let ((w (get-child 'ok p right-brother?)))
+                (begin
+                  (if (eq? (get-color w) RED)
+                      (begin (set-color! w BLACK) ;this is case1
+                             (set-color! p RED)
+                             ((get-rotate-proc 'first right-brother?) p)
+                             (set! w (get-child 'ok p right-brother?))))
+                  (if (and (eq? (get-color (get-left w)) BLACK)
+                           (eq? (get-color (get-right w)) BLACK))
+                      (begin (set-color! w RED); this is case2
+                             (delete-fixup p))
+                      (begin
+                        (if (eq? (get-color (get-child 'ok w right-brother?)) BLACK)
+                            (begin (set-color! ((get-child 'third w right-brother?) #t) BLACK)
+                                   (set-color! w RED)
+                                   ((get-rotate-proc 'third right-brother?) w)
+                                   (set! w ((get-child 'third p right-brother?) #f))))
+                        (set-color! w (get-color p))
+                        (set-color! p BLACK)
+                        (set-color! (get-child 'ok w right-brother?) BLACK)
+                        ((get-rotate-proc 'fourth right-brother?) p)
+                        (set! x root)
+                        (delete-fixup x)))))))))
+    (define (delete z)
+      (cond ((eq? root z) (set! root '()))
+            (else
+             (let ((y (choose-y z)))
+               (let ((x (choose-x y))
+                     (p (get-parent y)))
+                 (begin (if (null? p)
+                            (set! root x)
+                            (if (eq? y (get-left p))
+                                (connect-nodes-lc x p)
+                                (connect-nodes-rc x p)))
+                        (if (not (eq? y z))
+                            (begin (set-key! z (get-key y))
+                                   (set-satellite! z (get-satellite y))))
+                        (if (eq? (get-color y) BLACK)
+                            (delete-fixup x))))))))
+
     (define (dispatch message)
       (cond ((eq? message 'insert) insert)
             ((eq? message 'in-order-walk) (in-order-walk root))
@@ -293,10 +375,12 @@
             ((eq? message 'left-rotate) left-rotate)
             ((eq? message 'right-rotate) right-rotate)
             ((eq? message 'insert) insert)
+            ((eq? message 'delete) delete)
             (else (error "Unknown Message!" message))))
     dispatch))
 
 (define (insert rbt n) ((rbt 'insert) n))
+(define (delete rbt z) ((rbt 'delete) z))
 (define (in-order-walk rbt) (rbt 'in-order-walk))
 (define (level-walk rbt) (rbt 'level-walk))
-(define (search rbt k) ((rbt 'search k)))
+(define (search rbt k) ((rbt 'search) k))
