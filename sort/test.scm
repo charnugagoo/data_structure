@@ -13,7 +13,8 @@
 (get-input-data 0)
 
 ;(merge-sort data < 99999999)
-(merge-sort! data <)
+;(merge-sort! data <)
 ;(insert-sort data <)
+(heap-sort data < -2)
 
 'done
